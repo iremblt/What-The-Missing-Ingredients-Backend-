@@ -1,0 +1,6 @@
+{
+    "SERVER" : "LAPTOP-7OGA62A2",
+    "DATABASE" : "WhatTheMissingIngredient",
+    "DRIVER" : "SQL Server Native Client 11.0",
+    "DATABASE_CONNECTION" : "mssql://LAPTOP-7OGA62A2/WhatTheMissingIngredient?trusted_connection=yes&driver=SQL Server Native Client 11.0"
+}
