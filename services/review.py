@@ -1,7 +1,6 @@
 from entities.review import Review
 from models.review import ReviewSchema
 from flask import jsonify
-import pandas as pd
 from entities.databaseSessionManager import SessionManager
 
 class ReviewCRUD():
@@ -54,16 +53,6 @@ class ReviewCRUD():
             review = Review(RecipeID, profileID, Rate, Comments)
             self.dbSession.add(review)
             self.dbSession.commit()
-            ReviewID = review.ReviewID
-            reviewCSV = {
-            'RecipeID': [RecipeID],
-            'profileID': [profileID],
-            'Rate': [Rate],
-            'ReviewID': [ReviewID],
-            'Comments':[Comments]
-            }
-            df = pd.DataFrame(reviewCSV)
-            df.to_csv('clean_reviews.csv', mode='a', index=False, header=False)   
             message = 'Successfully added this recipe'
             response = self.review_schema.jsonify(review)
             response.message = message
@@ -73,13 +62,10 @@ class ReviewCRUD():
             return jsonify({'message':error,'success':'500 INTERNAL ERROR'})
     
     def deleteReview(self,id): 
-        reviews_list = pd.read_csv('clean_reviews.csv')
         review = self.dbSession.query(Review).get(id)
         if review :
             self.dbSession.delete(review)
             self.dbSession.commit()
-            reviews_list = reviews_list.drop(reviews_list[(reviews_list['ReviewID'] == int(id))].index)
-            reviews_list.to_csv('clean_reviews.csv', index=False)
             message = 'Successfully deleted this review'
             response = self.review_schema.jsonify(review)
             response.message = message
@@ -90,7 +76,6 @@ class ReviewCRUD():
             return jsonify({'message':message,'success':'404 NOT FOUND'})
 
     def editReview(self,id,RecipeID,profileID,Rate,Comments):
-        reviews_list = pd.read_csv('clean_reviews.csv')
         error = self.validateReview(Rate)
         if error is 'None':
             review = self.dbSession.query(Review).get(id)
@@ -103,13 +88,6 @@ class ReviewCRUD():
                 review.Comments = Comments
                 self.dbSession.commit()
                 
-                index = reviews_list.index[reviews_list['ReviewID'] == int(id)].tolist()
-                reviews_list.loc[index[0], 'RecipeID'] = RecipeID
-                reviews_list.loc[index[0], 'profileID'] = profileID
-                reviews_list.loc[index[0], 'Rate'] = Rate
-                reviews_list.loc[index[0], 'Comments'] = Comments
-                reviews_list.to_csv('clean_reviews.csv', index=False)
-
                 message = 'Successfully added this review'
                 response = self.review_schema.jsonify(review)
                 response.message = message

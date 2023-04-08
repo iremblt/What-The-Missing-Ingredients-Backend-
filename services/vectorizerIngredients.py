@@ -15,7 +15,6 @@ class embeddingVectorizer(object):
     def average(self, item):
         mean = []
         for word in item:
-            # if word in self.model_cbow.wv.index_to_key:
             if word in self.model_cbow.wv.index_to_key:
                 mean.append(self.model_cbow.wv.get_vector(word))
 

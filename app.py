@@ -18,8 +18,56 @@ def home():
 
 @app.route('/Recipe/List', methods=(['GET']))
 def recipeList():
-    recipe_list = recipeServices.getRecipeList()
-    return recipe_list
+    args = request.args
+    try:
+        if(getattr(request, 'json', None)):
+                Recipe_Name = request.json['RecipeName']
+                Page_Size = request.json['PageSize']
+                Page_Number_Per_Page = request.json['PageNumberPerPage']
+                recipe_list = recipeServices.searchByRecipeName(Recipe_Name,Page_Size,Page_Number_Per_Page)
+                return recipe_list
+    except:
+        try:
+            if(getattr(request, 'json', None)):
+                Recipe_Name = request.json['RecipeName']
+                recipe_list = recipeServices.searchByRecipeName(Recipe_Name,1,20)
+                return recipe_list
+        except:
+            try:
+                if(getattr(request, 'json', None)):
+                    Page_Size = request.json['PageSize']
+                    Page_Number_Per_Page = request.json['PageNumberPerPage']
+                    recipe_list = recipeServices.getRecipeListWithPagination(Page_Size,Page_Number_Per_Page)
+                    return recipe_list
+            except:
+                try:
+                    if(len(args)):
+                        if(getattr(request, 'args', None)):
+                                print(request.args)
+                                Recipe_Name = args.get('Recipe_Name')
+                                Page_Size = int(args.get('PageSize'))
+                                Page_Number_Per_Page = int(args.get('PageNumberPerPage'))
+                                recipe_list = recipeServices.searchByRecipeName(Recipe_Name,Page_Size,Page_Number_Per_Page)
+                                return recipe_list
+                    else:
+                        recipe_list = recipeServices.getRecipeList()
+                        return recipe_list
+                except:
+                    try:
+                        if(getattr(request, 'args', None)):
+                            Recipe_Name = args.get('Recipe_Name')
+                            recipe_list = recipeServices.searchByRecipeName(Recipe_Name,1,20)
+                            return recipe_list
+                    except:
+                        try:
+                            if(getattr(request, 'args', None)):
+                                Page_Size = int(args.get('PageSize'))
+                                Page_Number_Per_Page = int(args.get('PageNumberPerPage'))
+                                recipe_list = recipeServices.getRecipeListWithPagination(Page_Size,Page_Number_Per_Page)
+                                return recipe_list
+                        except:
+                            recipe_list = recipeServices.getRecipeList()
+                            return recipe_list
 
 @app.route('/Recipe/Details/<id>', methods=(['GET']))
 def recipeDetail(id):

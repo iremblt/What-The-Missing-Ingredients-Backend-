@@ -12,7 +12,7 @@ recipe_list = recipe_list.fillna(0)
 conn_str = (
     r'DRIVER={SQL Server Native Client 11.0};'
     r'SERVER=LAPTOP-7OGA62A2;'
-    r'DATABASE=WhatTheMissingIngredient;'
+    r'DATABASE=WhatTheMissingIngredientt;'
     r'Trusted_Connection=yes;'
 )
 conn = pyodbc.connect(conn_str)
@@ -24,7 +24,7 @@ cursor.execute("SET IDENTITY_INSERT dbo.clean_recipes ON")
 for row in recipe_list.itertuples():
     cursor.execute(
             '''
-            INSERT INTO WhatTheMissingIngredient.dbo.clean_recipes(Recipe_Name,Review_Count,Recipe_Photo,Author,Prepare_Time,Cook_Time,Total_Time,Ingredients,Directions,RecipeID)
+            INSERT INTO WhatTheMissingIngredientt.dbo.clean_recipes(Recipe_Name,Review_Count,Recipe_Photo,Author,Prepare_Time,Cook_Time,Total_Time,Ingredients,Directions,RecipeID)
             VALUES(?,?,?,?,?,?,?,?,?,?)
             ''',
             row[1], 
@@ -53,7 +53,7 @@ cursor.execute("SET IDENTITY_INSERT dbo.clean_reviews ON")
 for row in reviews_list.itertuples():
     cursor.execute(
             '''
-            INSERT INTO WhatTheMissingIngredient.dbo.clean_reviews(RecipeID,profileID,Rate,ReviewID,Comments)
+            INSERT INTO WhatTheMissingIngredientt.dbo.clean_reviews(RecipeID,profileID,Rate,ReviewID,Comments)
             VALUES(?,?,?,?,?)
             ''',
             row[1], 
@@ -80,7 +80,7 @@ cursor.execute("SET IDENTITY_INSERT dbo.users ON")
 for row in user_list.itertuples():
     cursor.execute(
             '''
-            INSERT INTO WhatTheMissingIngredient.dbo.users(profileID,name,email,password,Age,Gender,MaritalStatus,Occupation)
+            INSERT INTO WhatTheMissingIngredientt.dbo.users(profileID,name,email,password,Age,Gender,MaritalStatus,Occupation)
             VALUES(?,?,?,?,?,?,?,?)
             ''',
             row[1], 

@@ -1,10 +1,22 @@
 from entities.recipe import Recipe
 from models.recipe import RecipeSchema
 from flask import jsonify
-from csv import writer,reader
 import json
-from services.recommendationRecipe import preaperRecommendation
 from entities.databaseSessionManager import SessionManager
+
+
+import nltk
+import string
+import re
+from nltk.stem import WordNetLemmatizer
+from nltk.corpus import stopwords
+from gensim.models import Word2Vec
+from services.vectorizerIngredients import embeddingVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import pandas as pd
+
+nltk.download('stopwords')
+nltk.download('wordnet')
 
 class RecipeCRUD():
     dbSession = SessionManager().session
@@ -24,6 +36,42 @@ class RecipeCRUD():
             response.status = '200 OK'
             return response
     
+    def getRecipeListWithPagination(self,Page_Size,Page_Number_Per_Page):
+        recipe_list = self.dbSession.query(Recipe).all()
+        if len(recipe_list) == 0 :
+            message = 'There is no recipe yet. You can add a new recipe'
+            return jsonify({'message':message,'success':'404 NOT FOUND'})
+        else:
+            message = 'Successfully listed all recipes'
+            offset = Page_Number_Per_Page * (Page_Size - 1)
+            recipe_list_pagination =self.dbSession.query(Recipe).order_by(Recipe.RecipeID.desc()).offset(offset).limit(Page_Number_Per_Page).all()
+            results = self.recipe_schemas.dump(recipe_list_pagination)
+            response = jsonify(results)
+            response.message = message
+            response.status = '200 OK'
+            return response
+    
+    def searchByRecipeName(self,Recipe_Name,Page_Size,Page_Number_Per_Page):
+        recipe_list = self.dbSession.query(Recipe).all()
+        if len(recipe_list) == 0 :
+            message = 'There is no recipe yet. You can add a new recipe'
+            return jsonify({'message':message,'success':'404 NOT FOUND'})
+        else:
+            message = 'Successfully listed all recipes'
+            recipe_list_search =self.dbSession.query(Recipe).filter(Recipe.Recipe_Name.contains(Recipe_Name)).all()
+            if len(recipe_list_search) == 0 :
+                message = 'There is no recipe name in your search query.'
+                return jsonify({'message':message,'success':'404 NOT FOUND'})
+            else:
+                offset = Page_Number_Per_Page * (Page_Size - 1)
+                recipe_list_pagination = self.dbSession.query(Recipe).filter(Recipe.Recipe_Name.contains(Recipe_Name)).order_by(Recipe.RecipeID.desc()).offset(offset).limit(Page_Number_Per_Page).all()
+                results = self.recipe_schemas.dump(recipe_list_pagination)
+                # results = self.recipe_schemas.dump(recipe_list_search)
+                response = jsonify(results)
+                response.message = message
+                response.status = '200 OK'
+                return response
+    
     def getRecipeById(self,id):
         recipe = self.dbSession.query(Recipe).get(id)
         if recipe :
@@ -42,14 +90,6 @@ class RecipeCRUD():
             recipe = Recipe(Recipe_Name, Review_Count, Recipe_Photo, Author, Prepare_Time, Cook_Time,Total_Time,Ingredients,Directions)
             self.dbSession.add(recipe)
             self.dbSession.commit()
-
-            RecipeID = recipe.RecipeID
-            recipeCSV = [Recipe_Name,Review_Count,Recipe_Photo,Author,Prepare_Time,Cook_Time,Total_Time,Ingredients,Directions,RecipeID] 
-
-            with open(r'clean_recipes.csv', 'a',newline='') as f:
-                writer_data = writer(f, delimiter = ";")
-                writer_data.writerow(recipeCSV)
-            
             message = 'Successfully added this recipe'
             response = self.recipe_schema.jsonify(recipe)
             response.message = message
@@ -59,32 +99,149 @@ class RecipeCRUD():
             return jsonify({'message':error,'success':'500 INTERNAL ERROR'})
     
     def recommendRecipe(self,ingredients):
-        rec = preaperRecommendation(ingredients)
+        rec = self.preaperRecommendation(ingredients)
         json_data = rec.to_json(orient="records")
         json_load = json.loads(json_data)
         response = json.dumps(json_load)
-        return response
+        return response    
     
+    def mostCommonIngredients(self):
+        vocabulary = nltk.FreqDist()
+        most_common_20_words = []
+        recipe_list = self.dbSession.query(Recipe).all()
+        for recipe in recipe_list:
+            ingredients = recipe.Ingredients.split(',')
+            # ingredients = recipe.Ingredients.replace(' ',"").split(',')
+            vocabulary.update(ingredients)
+        for word, frequency in vocabulary.most_common(20):
+            most_common_20_words.append(word)
+            print(f'{word} ; {frequency}')
+        return most_common_20_words
+    
+    def convertList(string):
+        return list(string.split(" "))
+
+    def ingredientPrepocessing(self):
+        # commonIngredients = self.mostCommonIngredients()
+        recipe_list = self.dbSession.query(Recipe).all()
+        ingredient_list = []
+        for recipe in recipe_list:
+            ingredient_list.append(recipe.Ingredients.split(','))
+            # ingredient_list.append(recipe.Ingredients.replace(' ',"").split(','))
+        if isinstance(ingredient_list, list):
+            ingredient_list = ingredient_list
+        else:
+            ingredient_list = self.convertList(ingredient_list)
+        translator = str.maketrans('', '', string.punctuation)
+        lemmatizer = WordNetLemmatizer()
+        parsed_ingredient = []
+        parsed_ingredient_list = []
+        for ingredients in ingredient_list:
+            for ingredient in ingredients:
+                ingredient.translate(translator)
+                items = re.split(' |-', ingredient)
+                items = [word for word in items if word.isalpha()]
+                items = [word.lower() for word in items]
+                items = [lemmatizer.lemmatize(word) for word in items]
+                stop_words = set(stopwords.words('english'))
+                items = [word for word in items if word not in stop_words]
+                # items = [word for word in items if word not in commonIngredients]
+                if items:
+                    parsed_ingredient.append(' '.join(items))
+            if len(parsed_ingredient):
+                parsed_ingredient_list.append(parsed_ingredient)
+                parsed_ingredient = []
+            else:
+                parsed_ingredient_list.append([])
+        return parsed_ingredient_list
+
+    def inputIngredientPrepocessing(self,input_ingredients):
+            # commonIngredients = self.mostCommonIngredients()
+            ingredient_list = []
+            for input in input_ingredients:
+                ingredient_list.append(input)
+                # ingredient_list.append(input.replace(' ',""))
+            if isinstance(input_ingredients, list):
+                input_ingredients = input_ingredients
+            else:
+                input_ingredients = self.convertList(input_ingredients)
+            translator = str.maketrans('', '', string.punctuation)
+            lemmatizer = WordNetLemmatizer()
+            parsed_ingredient = []
+            for ingredient in input_ingredients:
+                ingredient.translate(translator)
+                items = re.split(' |-', ingredient)
+                items = [word for word in items if word.isalpha()]
+                items = [word.lower() for word in items]
+                items = [lemmatizer.lemmatize(word) for word in items]
+                stop_words = set(stopwords.words('english'))
+                items = [word for word in items if word not in stop_words]
+                # items = [word for word in items if word not in commonIngredients]
+                if items:
+                    parsed_ingredient.append(' '.join(items))
+            return parsed_ingredient   
+
+
+    def corpus_sorted(self,parsed_data):
+        corpus_sorted = []
+        for i in parsed_data:
+            i.sort()
+            corpus_sorted.append(i)
+        return corpus_sorted
+
+    def get_window(self,corpus):
+        lengths = [len(doc) for doc in corpus]
+        avg_len = float(sum(lengths)) / len(lengths)
+        return round(avg_len)
+
+    def getModelAndParsed(self,corpus):
+        model_word2 = Word2Vec(corpus, sg=0, workers=8, window = self.get_window(corpus), min_count=1, vector_size=100)
+        model_word2.save('models/model_word2.bin')
+
+    def recommendRecipes(self,scores,N):
+        recipe_list = self.dbSession.query(Recipe).all()
+        sorted_top = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:N]
+        recommendation = pd.DataFrame(columns=["Recipe_Name", "Ingredients","Author","Cook_Time","Prepare_Time","Recipe_Photo","Total_Time","RecipeID"])
+        count = 0
+        for i in sorted_top:
+            for index, recipe in enumerate(recipe_list):
+                if(index == i):
+                    recommendation.at[count, "Recipe_Name"] = recipe.Recipe_Name
+                    recommendation.at[count, "Ingredients"] = recipe.Ingredients
+                    recommendation.at[count, "Author"] = recipe.Author
+                    recommendation.at[count, "Cook_Time"] = recipe.Cook_Time
+                    recommendation.at[count, "Prepare_Time"] = recipe.Prepare_Time
+                    recommendation.at[count, "Recipe_Photo"] = recipe.Recipe_Photo
+                    recommendation.at[count, "Total_Time"] = recipe.Total_Time
+                    recommendation.at[count, "RecipeID"] = recipe.RecipeID
+                    recommendation.at[count, "score"] = f"{scores[i]}"
+                    count += 1
+        return recommendation
+    
+    def preaperRecommendation(self,ingredients):
+            input = self.inputIngredientPrepocessing(ingredients.split(","))
+            parsed_data = self.ingredientPrepocessing()
+            corpus = self.corpus_sorted(parsed_data)
+            self.getModelAndParsed(corpus)
+            model = Word2Vec.load("models/model_word2.bin")
+            model.init_sims(replace=True)
+            if model:
+                print("Successfully loaded model")
+            vector = embeddingVectorizer(model)
+            item_vec = vector.transform(corpus)
+            item_vec = [doc.reshape(1, -1) for doc in item_vec] 
+            assert len(item_vec) == len(corpus)
+            input_embedding = vector.transform([input])[0].reshape(1, -1)
+            cos_sim = map(lambda x: cosine_similarity(input_embedding, x)[0][0], item_vec)
+            scores = list(cos_sim)
+            recommendations = self.recommendRecipes(scores,N=20)
+            return recommendations
+
     def deleteRecipe(self,id):
         recipe = self.dbSession.query(Recipe).get(id)
         if recipe :
             self.dbSession.delete(recipe)
             self.dbSession.commit()
-            lines = list()
-            with open('clean_recipes.csv', 'r') as readFile:
-                read = reader(readFile,delimiter = ";")
-                count = 0
-                for row in read:
-                    if len(row)>0:
-                        lines.append(row)
-                    for field in row:
-                        count+=1
-                        if(count %10 == 0):
-                            if field == id:
-                                lines.remove(row)
-            with open('clean_recipes.csv', 'w') as writeFile:
-                write = writer(writeFile,delimiter = ";")
-                write.writerows(lines)
             message = 'Successfully deleted this recipe'
             response = self.recipe_schema.jsonify(recipe)
             response.message = message
@@ -111,22 +268,6 @@ class RecipeCRUD():
                 recipe.Ingredients = Ingredients
                 recipe.Directions = Directions
                 self.dbSession.commit()
-
-                lines = list()
-                recipeCSV = [Recipe_Name,Review_Count,Recipe_Photo,Author,Prepare_Time,Cook_Time,Total_Time,Ingredients,Directions,id] 
-                with open('clean_recipes.csv', 'r') as readFile:
-                    read = reader(readFile,delimiter = ";")
-                    for row in read:
-                        if len(row)>0:
-                            lines.append(row)
-                        for field in row:
-                            if field == id:
-                                lines.remove(row)
-                                lines.append(recipeCSV)
-                
-                with open('clean_recipes.csv', 'w') as writeFile:
-                    write = writer(writeFile,delimiter = ";")
-                    write.writerows(lines)
 
                 message = 'Successfully added this recipe'
                 response = self.recipe_schema.jsonify(recipe)

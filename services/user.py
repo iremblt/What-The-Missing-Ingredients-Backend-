@@ -1,7 +1,6 @@
 from entities.user import User
 from models.user import UserSchema
 from flask import jsonify
-import pandas as pd
 import jwt
 import re
 from datetime import datetime, timedelta
@@ -17,6 +16,11 @@ class UserCRUD():
     iv =  get_random_bytes(16)
 
     def getUserList(self):
+        ## recipe ları getir
+        ## recipe ların author name lerini bi yere yaz eğer içeriyorsa bu liste de ekleme
+        ## her bir author için user pass email vs oluştur ve post at 
+        ## post attıktan sonra gelen profileID'i recipe a ekle ??
+        ## recipe da profileID diye bir kısım yok yeni bir column oluştur recipe da ??
         user_list = self.dbSession.query(User).all()
         if len(user_list) == 0 :
             message = 'There is no user yet. You need to register it'
@@ -43,15 +47,9 @@ class UserCRUD():
     
     def encryptPassword(self,password):
         return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-        # raw = pad(raw.encode(),16)
-        # cipher = AES.new(self.key.encode('utf-8'), AES.MODE_CBC,self.iv)
-        # return base64.b64encode(cipher.encrypt(raw)),base64.b64encode(cipher.iv).decode('utf-8')
 
     def decryptPassword(self,password,realpassword):
         return bcrypt.checkpw(password.encode('utf-8'), realpassword.encode('utf-8'))
-        # enc = base64.b64decode(enc)
-        # cipher = AES.new(self.key.encode('utf-8'), AES.MODE_CBC,base64.b64decode(self.iv))
-        # return unpad(cipher.decrypt(enc),16)
     
     def generateAccessToken(self,payload):
         jwt_token = jwt.encode(payload, self.key,algorithm='HS256')
@@ -104,19 +102,6 @@ class UserCRUD():
             user = User(name, email, password, Age,Gender,MaritalStatus,Occupation)
             self.dbSession.add(user)
             self.dbSession.commit()
-            profileID = user.profileID
-            userCSV = {
-            'profileID':[profileID],
-            'name': [name],
-            'email': [email],
-            'password': [password],
-            'Age': [Age],
-            'Gender':[Gender],
-            'MaritalStatus':[MaritalStatus],
-            'Occupation':[Occupation]
-            }
-            df = pd.DataFrame(userCSV)
-            df.to_csv('users.csv', mode='a', index=False, header=False)        
             message = 'Successfully registered user'
             response = self.user_schema.jsonify(user)
             response.message = message
@@ -126,13 +111,10 @@ class UserCRUD():
             return jsonify({'message':error,'success':'500 INTERNAL ERROR'})
     
     def deleteUser(self,id): 
-        user_list = pd.read_csv('users.csv')
         user = self.dbSession.query(User).get(id)
         if user :
             self.dbSession.delete(user)
             self.dbSession.commit()
-            user_list = user_list.drop(user_list[(user_list['profileID'] == int(id))].index)
-            user_list.to_csv('users.csv', index=False)
             message = 'Successfully deleted this user'
             response = self.user_schema.jsonify(user)
             response.message = message
@@ -143,7 +125,6 @@ class UserCRUD():
             return jsonify({'message':message,'success':'404 NOT FOUND'})
     
     def editUser(self,id,name,email,password,Age,Gender,MaritalStatus,Occupation):
-        user_list = pd.read_csv('users.csv')
         error = self.validateUser(email,password,status='edit')
         password = self.encryptPassword(password)
         if error is 'None':
@@ -159,16 +140,6 @@ class UserCRUD():
                 user.MaritalStatus = MaritalStatus
                 user.Occupation = Occupation
                 self.dbSession.commit()
-                
-                index = user_list.index[user_list['profileID'] == int(id)].tolist()
-                user_list.loc[index[0], 'name'] = name
-                user_list.loc[index[0], 'email'] = email
-                user_list.loc[index[0], 'password'] = password
-                user_list.loc[index[0], 'Age'] = Age
-                user_list.loc[index[0], 'Gender'] = Gender
-                user_list.loc[index[0], 'MaritalStatus'] = MaritalStatus
-                user_list.loc[index[0], 'Occupation'] = Occupation
-                user_list.to_csv('users.csv', index=False)
 
                 message = 'Successfully added this user'
                 response = self.user_schema.jsonify(user)
