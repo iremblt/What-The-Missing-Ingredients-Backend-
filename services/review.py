@@ -20,7 +20,7 @@ class ReviewCRUD():
             response.message = message
             response.status = '200 OK'
             return response
-    
+
     def getReviewsByRecipeID(self,id):
         reviews = self.dbSession.query(Review).filter_by(RecipeID=id).all()
         if reviews :
@@ -53,7 +53,7 @@ class ReviewCRUD():
             review = Review(RecipeID, profileID, Rate, Comments)
             self.dbSession.add(review)
             self.dbSession.commit()
-            message = 'Successfully added this recipe'
+            message = 'Successfully added this review'
             response = self.review_schema.jsonify(review)
             response.message = message
             response.status = '200 OK'

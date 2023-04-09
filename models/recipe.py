@@ -13,3 +13,8 @@ marsh = Marshmallow(app)
 class RecipeSchema(marsh.Schema):
     class Meta:
         fields = ('Recipe_Name','Review_Count','Recipe_Photo','Author','Prepare_Time','Cook_Time','Total_Time','Ingredients','Directions','RecipeID')
+
+
+class RecipeSchemaWithAvgRating(marsh.Schema):
+    class Meta:
+        fields = ('Recipe_Name','Review_Count','Recipe_Photo','Author','Prepare_Time','Cook_Time','Total_Time','Ingredients','Directions','RecipeID','RatingAvg')

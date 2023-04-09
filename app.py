@@ -69,6 +69,26 @@ def recipeList():
                             recipe_list = recipeServices.getRecipeList()
                             return recipe_list
 
+@app.route('/Recipe/Most/Rating', methods=(['GET']))
+def mostPopularRecipes():
+    args = request.args
+    try:
+        if(getattr(request, 'json', None)):
+            Page_Size = request.json['PageSize']
+            Page_Number_Per_Page = request.json['PageNumberPerPage']
+            recipe_list = recipeServices.getRecipeListWithPaginationOrderByReviewCount(Page_Size,Page_Number_Per_Page)
+            return recipe_list
+    except:
+        if(len(args)):
+                if(getattr(request, 'args', None)):
+                    Page_Size = int(args.get('PageSize'))
+                    Page_Number_Per_Page = int(args.get('PageNumberPerPage'))
+                    recipe_list = recipeServices.getRecipeListWithPaginationOrderByReviewCount(Page_Size,Page_Number_Per_Page)
+                    return recipe_list
+                else:
+                    recipe_list = recipeServices.getRecipeList()
+                    return recipe_list
+
 @app.route('/Recipe/Details/<id>', methods=(['GET']))
 def recipeDetail(id):
     return recipeServices.getRecipeById(id)
@@ -118,6 +138,23 @@ def reviewList():
 def recipeReviews(id):
     return reviewServices.getReviewsByRecipeID(id)
 
+@app.route('/Recipe/Avarage/Rate', methods=(['GET']))
+def avgRatingWithRecipes():
+    args = request.args
+    try:
+        if(getattr(request, 'json', None)):
+            ids = request.json['ids']
+            recipe_list =  recipeServices.getRecipeListByAvgRating(ids)
+            return recipe_list
+    except:
+        if(len(args)):
+            if(getattr(request, 'args', None)):
+                ids = []
+                ids.append(args.get('0'))
+                ids.append(args.get('1'))
+                recipe_list = recipeServices.getRecipeListByAvgRating(ids)
+                return recipe_list
+
 @app.route('/User/Review/Details/<id>', methods=(['GET']))
 def userReviews(id):
     return reviewServices.getReviewsByProfileID(id)
@@ -146,6 +183,11 @@ def deleteReview(id):
 def userList():
     user_list = userServices.getUserList()
     return user_list
+
+@app.route('/Chef/List', methods=(['GET']))
+def chefList():
+    chef_list = userServices.getChefList()
+    return chef_list
 
 @app.route('/User/Detail/<id>', methods=(['GET']))
 def user_details(id):

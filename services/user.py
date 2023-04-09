@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import bcrypt
 from Crypto.Random import get_random_bytes
 from entities.databaseSessionManager import SessionManager
+from entities.recipe import Recipe
 
 class UserCRUD():
     dbSession = SessionManager().session
@@ -16,11 +17,6 @@ class UserCRUD():
     iv =  get_random_bytes(16)
 
     def getUserList(self):
-        ## recipe ları getir
-        ## recipe ların author name lerini bi yere yaz eğer içeriyorsa bu liste de ekleme
-        ## her bir author için user pass email vs oluştur ve post at 
-        ## post attıktan sonra gelen profileID'i recipe a ekle ??
-        ## recipe da profileID diye bir kısım yok yeni bir column oluştur recipe da ??
         user_list = self.dbSession.query(User).all()
         if len(user_list) == 0 :
             message = 'There is no user yet. You need to register it'
@@ -32,6 +28,21 @@ class UserCRUD():
             response.message = message
             response.status = '200 OK'
             return response
+        
+    def getChefList(self):
+        recipe_list = self.dbSession.query(Recipe)
+        profileID_list = []
+        user_list = []
+        for recipe in recipe_list.all():
+            if int(recipe.Author) not in profileID_list:
+                profileID_list.append(int(recipe.Author))
+                user_list.append(self.dbSession.query(User).get(int(recipe.Author)))
+        results = self.user_schemas.dump(user_list)
+        message = 'Successfully listed all chefs'
+        response = jsonify(results)
+        response.message = message
+        response.status = '200 OK'
+        return response
     
     def getUserByID(self,id):
         user = self.dbSession.query(User).get(id)
@@ -109,6 +120,13 @@ class UserCRUD():
             return response
         else:
             return jsonify({'message':error,'success':'500 INTERNAL ERROR'})
+        
+    def createForRecipe(self,name,email,password,Age,Gender,MaritalStatus,Occupation):
+        password = self.encryptPassword(password)
+        user = User(name, email, password, Age,Gender,MaritalStatus,Occupation)
+        self.dbSession.add(user)
+        self.dbSession.commit()
+        return user
     
     def deleteUser(self,id): 
         user = self.dbSession.query(User).get(id)

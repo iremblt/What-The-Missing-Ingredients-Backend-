@@ -1,5 +1,6 @@
 from entities.recipe import Recipe
 from models.recipe import RecipeSchema
+from models.recipe import RecipeSchemaWithAvgRating
 from flask import jsonify
 import json
 from entities.databaseSessionManager import SessionManager
@@ -14,6 +15,8 @@ from gensim.models import Word2Vec
 from services.vectorizerIngredients import embeddingVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import pandas as pd
+from services.review import ReviewCRUD
+from entities.review import Review
 
 nltk.download('stopwords')
 nltk.download('wordnet')
@@ -22,6 +25,9 @@ class RecipeCRUD():
     dbSession = SessionManager().session
     recipe_schemas = RecipeSchema(many=True)
     recipe_schema = RecipeSchema()
+    recipe_schema_avg_rating = RecipeSchemaWithAvgRating()
+    recipe_schema_avg_ratings = RecipeSchemaWithAvgRating(many=True)
+    review_services = ReviewCRUD()
 
     def getRecipeList(self):
         recipe_list = self.dbSession.query(Recipe).all()
@@ -50,6 +56,59 @@ class RecipeCRUD():
             response.message = message
             response.status = '200 OK'
             return response
+        
+    def getRecipeListWithPaginationOrderByReviewCount(self,Page_Size,Page_Number_Per_Page):
+        recipe_list = self.dbSession.query(Recipe).all()
+        if len(recipe_list) == 0 :
+            message = 'There is no recipe yet. You can add a new recipe'
+            return jsonify({'message':message,'success':'404 NOT FOUND'})
+        else:
+            message = 'Successfully listed all recipes'
+            offset = Page_Number_Per_Page * (Page_Size - 1)
+            recipe_list_pagination =self.dbSession.query(Recipe).order_by(Recipe.Review_Count.desc()).offset(offset).limit(Page_Number_Per_Page).all()
+            results = self.recipe_schemas.dump(recipe_list_pagination)
+            response = jsonify(results)
+            response.message = message
+            response.status = '200 OK'
+            return response
+        
+    def getRecipeListByAvgRating(self,idList):
+        count = 0
+        avg_rate = 0
+        recipe_list = []
+        if len(idList):
+            for id in idList:
+                recipe = self.dbSession.query(Recipe).get(id)
+                if recipe :
+                    count = 0
+                    avg_rate = 0
+                    reviews_list = self.dbSession.query(Review).filter_by(RecipeID=recipe.RecipeID).all()
+                    for review in reviews_list:
+                        count = count + review.Rate
+                    if len(reviews_list):
+                        avg_rate = count / len(reviews_list)
+                    recipe.RatingAvg = round(avg_rate,1)
+                    recipe_list.append(recipe)
+            message = 'Successfully detailed this recipe'
+            results = self.recipe_schema_avg_ratings.dump(recipe_list)
+            response = jsonify(results)
+            return response 
+        else:
+            recipe = self.dbSession.query(Recipe).get(id)
+            if recipe :
+                reviews_list = self.dbSession.query(Review).filter_by(RecipeID=recipe.RecipeID).all()
+                for review in reviews_list:
+                    count = count + review.Rate
+                if len(reviews_list):
+                    avg_rate = count / len(reviews_list)
+                recipe.RatingAvg = round(avg_rate,1)
+                message = 'Successfully detailed this recipe'
+                results = self.recipe_schema_avg_rating.dump(recipe)
+                response = jsonify(results)
+                return response 
+            else:
+                message = 'There is no recipe for this id'
+                return jsonify({'message':message,'success':'404 NOT FOUND'})
     
     def searchByRecipeName(self,Recipe_Name,Page_Size,Page_Number_Per_Page):
         recipe_list = self.dbSession.query(Recipe).all()
@@ -85,7 +144,7 @@ class RecipeCRUD():
             return jsonify({'message':message,'success':'404 NOT FOUND'})
 
     def addRecipe(self,Recipe_Name, Review_Count, Recipe_Photo, Author, Prepare_Time, Cook_Time,Total_Time,Ingredients,Directions):
-        error = self.validateRecipe(Recipe_Name, Recipe_Photo,Total_Time,Ingredients,Directions)
+        error = self.validateRecipe('create',Recipe_Name, Recipe_Photo,Total_Time,Ingredients,Directions)
         if error is 'None':
             recipe = Recipe(Recipe_Name, Review_Count, Recipe_Photo, Author, Prepare_Time, Cook_Time,Total_Time,Ingredients,Directions)
             self.dbSession.add(recipe)
@@ -252,7 +311,7 @@ class RecipeCRUD():
             return jsonify({'message':message,'success':'404 NOT FOUND'})
 
     def editRecipe(self,id,Recipe_Name, Review_Count, Recipe_Photo, Author, Prepare_Time, Cook_Time,Total_Time,Ingredients,Directions):
-        error = self.validateRecipe(Recipe_Name, Recipe_Photo,Total_Time,Ingredients,Directions)
+        error = self.validateRecipe('edit',Recipe_Name, Recipe_Photo,Total_Time,Ingredients,Directions)
         if error is 'None':
             recipe = self.dbSession.query(Recipe).get(id) 
             if recipe is None:
@@ -277,7 +336,7 @@ class RecipeCRUD():
         else:
             return jsonify({'message':error,'success':'500 INTERNAL ERROR'})
 
-    def validateRecipe(self,Recipe_Name, Recipe_Photo, Total_Time,Ingredients,Directions):
+    def validateRecipe(self,status,Recipe_Name, Recipe_Photo, Total_Time,Ingredients,Directions):
         error = 'None'
         if not Recipe_Name:
             error = 'Recipe Name is required.'
@@ -291,6 +350,7 @@ class RecipeCRUD():
             error = 'Directions is required.'
         # Check if the Recipe Name is already exist
         result = self.dbSession.query(Recipe).filter_by(Recipe_Name=Recipe_Name).first()
-        if result is not None:
-            error = 'Recipe is already exist.'
+        if status == 'create':
+            if result is not None:
+                error = 'Recipe is already exist.'
         return error
