@@ -13,3 +13,7 @@ marsh = Marshmallow(app)
 class ReviewSchema(marsh.Schema):
     class Meta:
         fields = ('RecipeID','profileID','Rate','Comments','ReviewID')
+
+class ReviewSchemaWithAuthorName(marsh.Schema):
+    class Meta:
+        fields = ('RecipeID','profileID','Rate','Comments','ReviewID','Author')

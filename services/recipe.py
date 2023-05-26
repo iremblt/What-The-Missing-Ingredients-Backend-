@@ -4,7 +4,8 @@ from models.recipe import RecipeSchemaWithAvgRating
 from flask import jsonify
 import json
 from entities.databaseSessionManager import SessionManager
-
+from werkzeug.utils import secure_filename
+import os
 
 import nltk
 import string
@@ -17,6 +18,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import pandas as pd
 from services.review import ReviewCRUD
 from entities.review import Review
+from entities.user import User
 
 nltk.download('stopwords')
 nltk.download('wordnet')
@@ -123,19 +125,42 @@ class RecipeCRUD():
                 return jsonify({'message':message,'success':'404 NOT FOUND'})
             else:
                 offset = Page_Number_Per_Page * (Page_Size - 1)
-                recipe_list_pagination = self.dbSession.query(Recipe).filter(Recipe.Recipe_Name.contains(Recipe_Name)).order_by(Recipe.RecipeID.desc()).offset(offset).limit(Page_Number_Per_Page).all()
-                results = self.recipe_schemas.dump(recipe_list_pagination)
-                # results = self.recipe_schemas.dump(recipe_list_search)
-                response = jsonify(results)
-                response.message = message
-                response.status = '200 OK'
-                return response
+                if(Page_Number_Per_Page):
+                    recipe_list_pagination = self.dbSession.query(Recipe).filter(Recipe.Recipe_Name.contains(Recipe_Name)).order_by(Recipe.RecipeID.desc()).offset(offset).limit(Page_Number_Per_Page).all()
+                    results = self.recipe_schemas.dump(recipe_list_pagination)
+                    # results = self.recipe_schemas.dump(recipe_list_search)
+                    response = jsonify(results)
+                    response.message = message
+                    response.status = '200 OK'
+                    return response                        
+                else:
+                    recipe_list_name = self.dbSession.query(Recipe).filter(Recipe.Recipe_Name.contains(Recipe_Name)).order_by(Recipe.RecipeID.desc()).all()
+                    results = self.recipe_schemas.dump(recipe_list_name)
+                    # results = self.recipe_schemas.dump(recipe_list_search)
+                    response = jsonify(results)
+                    response.message = message
+                    response.status = '200 OK'
+                    return response
     
     def getRecipeById(self,id):
         recipe = self.dbSession.query(Recipe).get(id)
         if recipe :
+            count = 0
+            avg_rate = 0
+            reviews_list = self.dbSession.query(Review).filter_by(RecipeID=recipe.RecipeID).all()
+            for review in reviews_list:
+                count = count + review.Rate
+            if len(reviews_list):
+                avg_rate = count / len(reviews_list)
+            recipe.RatingAvg = round(avg_rate,1)
+            user = self.dbSession.query(User).filter_by(profileID=recipe.Author).first()
+            if user:
+                recipe.AuthorName = user.name
+            else:
+                recipe.AuthorName = 'Unknown'
             message = 'Successfully detailed this recipe'
-            response = self.recipe_schema.jsonify(recipe)
+            results = self.recipe_schema_avg_rating.dump(recipe)
+            response = jsonify(results)
             response.message = message
             response.status = '200 OK'
             return response
@@ -156,6 +181,11 @@ class RecipeCRUD():
             return response
         else:
             return jsonify({'message':error,'success':'500 INTERNAL ERROR'})
+    
+    def uploadRecipeImage(self,Recipe_Photo):
+        img_filename = secure_filename(Recipe_Photo.filename)
+        Recipe_Photo.save(os.path.join('static/uploads/recipes', img_filename))
+        return img_filename
     
     def recommendRecipe(self,ingredients):
         rec = self.preaperRecommendation(ingredients)
@@ -260,13 +290,14 @@ class RecipeCRUD():
     def recommendRecipes(self,scores,N):
         recipe_list = self.dbSession.query(Recipe).all()
         sorted_top = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:N]
-        recommendation = pd.DataFrame(columns=["Recipe_Name", "Ingredients","Author","Cook_Time","Prepare_Time","Recipe_Photo","Total_Time","RecipeID"])
+        recommendation = pd.DataFrame(columns=["Recipe_Name", "Ingredients","Directions","Author","Cook_Time","Prepare_Time","Recipe_Photo","Total_Time","RecipeID"])
         count = 0
         for i in sorted_top:
             for index, recipe in enumerate(recipe_list):
                 if(index == i):
                     recommendation.at[count, "Recipe_Name"] = recipe.Recipe_Name
                     recommendation.at[count, "Ingredients"] = recipe.Ingredients
+                    recommendation.at[count, "Directions"] = recipe.Directions
                     recommendation.at[count, "Author"] = recipe.Author
                     recommendation.at[count, "Cook_Time"] = recipe.Cook_Time
                     recommendation.at[count, "Prepare_Time"] = recipe.Prepare_Time
@@ -299,6 +330,11 @@ class RecipeCRUD():
     def deleteRecipe(self,id):
         recipe = self.dbSession.query(Recipe).get(id)
         if recipe :
+            reviews = self.dbSession.query(Review).filter_by(RecipeID=id).all()
+            if reviews :
+                if len(reviews) > 0:
+                    for review in reviews:
+                        self.dbSession.delete(review)
             self.dbSession.delete(recipe)
             self.dbSession.commit()
             message = 'Successfully deleted this recipe'
@@ -335,6 +371,27 @@ class RecipeCRUD():
                 return response
         else:
             return jsonify({'message':error,'success':'500 INTERNAL ERROR'})
+    
+    def recipeReviewCountEdit(self,id,count):
+        recipe = self.dbSession.query(Recipe).get(id) 
+        if recipe is None:
+            return  jsonify({'message':'There is no recipe this id','success':'404 NOT FOUND'})
+        else:
+            recipe.Recipe_Name = recipe.Recipe_Name
+            recipe.Review_Count = count
+            recipe.Recipe_Photo = recipe.Recipe_Photo
+            recipe.Author = recipe.Author
+            recipe.Prepare_Time = recipe.Prepare_Time
+            recipe.Cook_Time = recipe.Cook_Time
+            recipe.Total_Time = recipe.Total_Time
+            recipe.Ingredients = recipe.Ingredients
+            recipe.Directions =recipe. Directions
+            self.dbSession.commit()
+            message = 'Successfully added this recipe'
+            response = self.recipe_schema.jsonify(recipe)
+            response.message = message
+            response.status = '200 OK'
+            return response
 
     def validateRecipe(self,status,Recipe_Name, Recipe_Photo, Total_Time,Ingredients,Directions):
         error = 'None'
@@ -349,8 +406,8 @@ class RecipeCRUD():
         elif not Directions:
             error = 'Directions is required.'
         # Check if the Recipe Name is already exist
-        result = self.dbSession.query(Recipe).filter_by(Recipe_Name=Recipe_Name).first()
-        if status == 'create':
-            if result is not None:
-                error = 'Recipe is already exist.'
+        # result = self.dbSession.query(Recipe).filter_by(Recipe_Name=Recipe_Name).first()
+        # if status == 'create':
+        #     if result is not None:
+        #         error = 'Recipe is already exist.'
         return error

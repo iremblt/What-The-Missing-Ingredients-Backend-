@@ -4,7 +4,6 @@ from services.recipe import RecipeCRUD
 from services.review import ReviewCRUD
 from services.user import UserCRUD
 
-
 app = flask.Flask(__name__)
 
 recipeServices = RecipeCRUD()
@@ -44,7 +43,7 @@ def recipeList():
                     if(len(args)):
                         if(getattr(request, 'args', None)):
                                 print(request.args)
-                                Recipe_Name = args.get('Recipe_Name')
+                                Recipe_Name = args.get('RecipeName')
                                 Page_Size = int(args.get('PageSize'))
                                 Page_Number_Per_Page = int(args.get('PageNumberPerPage'))
                                 recipe_list = recipeServices.searchByRecipeName(Recipe_Name,Page_Size,Page_Number_Per_Page)
@@ -55,8 +54,8 @@ def recipeList():
                 except:
                     try:
                         if(getattr(request, 'args', None)):
-                            Recipe_Name = args.get('Recipe_Name')
-                            recipe_list = recipeServices.searchByRecipeName(Recipe_Name,1,20)
+                            Recipe_Name = args.get('RecipeName')
+                            recipe_list = recipeServices.searchByRecipeName(Recipe_Name,0,0)
                             return recipe_list
                     except:
                         try:
@@ -98,6 +97,11 @@ def recommendation():
     ingredients = request.json['ingredients']
     return recipeServices.recommendRecipe(ingredients)
 
+@app.route('/Recipe/Upload/Recipe/Image', methods=(['POST']))
+def upload():
+    Recipe_Photo = request.files['Recipe_Photo']
+    return recipeServices.uploadRecipeImage(Recipe_Photo)
+
 @app.route('/Recipe/Add', methods=(['POST']))
 def add():
     Recipe_Name = request.json['RecipeName']
@@ -124,6 +128,11 @@ def edit(id):
     Directions= request.json['Directions']
     return recipeServices.editRecipe(id,Recipe_Name, Review_Count, Recipe_Photo, Author, Prepare_Time, Cook_Time,Total_Time,Ingredients,Directions)
 
+@app.route('/Recipe/Edit/ReviewCount/<id>', methods=(['PUT']))
+def reviewCountRecipe(id):
+    count = request.json['count']
+    return recipeServices.recipeReviewCountEdit(id,count)
+
 @app.route('/Recipe/delete/<id>', methods=(['DELETE']))
 def deleteRecipe(id):
     return recipeServices.deleteRecipe(id)
@@ -131,12 +140,38 @@ def deleteRecipe(id):
 @app.route('/Review/List', methods=(['GET']))
 def reviewList():
     review_list = reviewServices.getReviewList()
-    print(review_list)
     return review_list
 
 @app.route('/Recipe/Review/Details/<id>', methods=(['GET']))
 def recipeReviews(id):
-    return reviewServices.getReviewsByRecipeID(id)
+    args = request.args
+    try:
+        if(getattr(request, 'json', None)):
+                Page_Size = request.json['PageSize']
+                Page_Number_Per_Page = request.json['PageNumberPerPage']
+                review_list = reviewServices.getReviewsByPaginationRecipeID(id,Page_Size,Page_Number_Per_Page)
+                return review_list
+    except:
+                try:
+                    if(len(args)):
+                        if(getattr(request, 'args', None)):
+                                Page_Size = int(args.get('PageSize'))
+                                Page_Number_Per_Page = int(args.get('PageNumberPerPage'))
+                                review_list = reviewServices.getReviewsByPaginationRecipeID(id,Page_Size,Page_Number_Per_Page)
+                                return review_list
+                    else:
+                        review_list = reviewServices.getReviewsByRecipeID(id)
+                        return review_list
+                except:
+                        try:
+                            if(getattr(request, 'args', None)):
+                                Page_Size = int(args.get('PageSize'))
+                                Page_Number_Per_Page = int(args.get('PageNumberPerPage'))
+                                review_list = reviewServices.getReviewsByPaginationRecipeID(id,Page_Size,Page_Number_Per_Page)
+                                return review_list
+                        except:
+                            review_list = reviewServices.getReviewsByRecipeID(id)
+                            return review_list
 
 @app.route('/Recipe/Avarage/Rate', methods=(['GET']))
 def avgRatingWithRecipes():
@@ -157,7 +192,23 @@ def avgRatingWithRecipes():
 
 @app.route('/User/Review/Details/<id>', methods=(['GET']))
 def userReviews(id):
-    return reviewServices.getReviewsByProfileID(id)
+    args = request.args
+    try:
+        if(getattr(request, 'json', None)):
+            Page_Size = request.json['PageSize']
+            Page_Number_Per_Page = request.json['PageNumberPerPage']
+            review_list = reviewServices.getReviewsByProfileID(id,Page_Size,Page_Number_Per_Page)
+            return review_list
+    except:
+        try:
+            if(getattr(request, 'args', None)):
+                Page_Size = int(args.get('PageSize'))
+                Page_Number_Per_Page = int(args.get('PageNumberPerPage'))
+                review_list = reviewServices.getReviewsByProfileID(id,Page_Size,Page_Number_Per_Page)
+                return review_list
+        except:
+            review_list = reviewServices.getReviewsByProfileID(id,1,1000)
+            return review_list
 
 @app.route('/Review/Add', methods=(['POST']))
 def addReview():
@@ -186,12 +237,63 @@ def userList():
 
 @app.route('/Chef/List', methods=(['GET']))
 def chefList():
-    chef_list = userServices.getChefList()
-    return chef_list
+    args = request.args
+    try:
+        if(getattr(request, 'json', None)):
+                name = request.json['name']
+                chef_list = userServices.searchByChefName(name)
+                return chef_list
+    except:
+            try:
+                if(getattr(request, 'json', None)):
+                    Page_Size = request.json['PageSize']
+                    Page_Number_Per_Page = request.json['PageNumberPerPage']
+                    chef_list = userServices.getChefListWithPagination(Page_Size,Page_Number_Per_Page)
+                    return chef_list
+            except:
+                try:
+                    if(len(args)):
+                        if(getattr(request, 'args', None)):
+                                name = args.get('name')
+                                chef_list = userServices.searchByChefName(name)
+                                return chef_list
+                    else:
+                        chef_list = userServices.getAllChefList()
+                        return chef_list
+                except:
+                        try:
+                            if(getattr(request, 'args', None)):
+                                Page_Size = int(args.get('PageSize'))
+                                Page_Number_Per_Page = int(args.get('PageNumberPerPage'))
+                                chef_list = userServices.getChefListWithPagination(Page_Size,Page_Number_Per_Page)
+                                return chef_list
+                        except:
+                            chef_list = userServices.getAllChefList()
+                            return chef_list
 
 @app.route('/User/Detail/<id>', methods=(['GET']))
 def user_details(id):
     return userServices.getUserByID(id)
+
+@app.route('/User/Recipe/Detail/<id>', methods=(['GET']))
+def user_recipes(id):
+    args = request.args
+    try:
+        if(getattr(request, 'json', None)):
+            Page_Size = request.json['PageSize']
+            Page_Number_Per_Page = request.json['PageNumberPerPage']
+            recipe_list = userServices.getUserByIDRecipes(id,Page_Size,Page_Number_Per_Page)
+            return recipe_list
+    except:
+        try:
+            if(getattr(request, 'args', None)):
+                Page_Size = int(args.get('PageSize'))
+                Page_Number_Per_Page = int(args.get('PageNumberPerPage'))
+                recipe_list = userServices.getUserByIDRecipes(id,Page_Size,Page_Number_Per_Page)
+                return recipe_list
+        except:
+            recipe_list = userServices.getUserByIDRecipes(id,1,1000)
+            return recipe_list
 
 @app.route('/Login', methods=(['POST']))
 def login():
@@ -214,24 +316,23 @@ def register():
 def editUser(id):
     name = request.json['name']
     email = request.json['email']
-    password = request.json['password']
     Age = request.json['Age']
     Gender = request.json['Gender']
     MaritalStatus = request.json['MaritalStatus']
     Occupation = request.json['Occupation']
-    return userServices.editUser(id,name,email,password,Age,Gender,MaritalStatus,Occupation)
+    return userServices.editUser(id,name,email,Age,Gender,MaritalStatus,Occupation)
 
 @app.route('/User/delete/<id>', methods=(['DELETE']))
 def deleteUser(id):
     return userServices.deleteUser(id)
 
-# @app.route('/Logout', methods=(['POST']))
-# def logout(id):
-#     return userServices.logout(id)
-
-# @app.route('/User/Reset/Password', methods=(['POST']))
-# def logout(id):
-#     return userServices.logout(id)
+@app.route('/User/Change/Password/<id>', methods=(['PUT']))
+def changePassword(id):
+    newPassword = request.json['newPassword']
+    currentPassword = request.json['currentPassword']
+    currentWritedPassword = request.json['currentWritedPassword']
+    user = userServices.changePassword(id,newPassword,currentPassword,currentWritedPassword)
+    return user
 
 
 if __name__ == '__main__':

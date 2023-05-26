@@ -13,3 +13,7 @@ marsh = Marshmallow(app)
 class UserSchema(marsh.Schema):
     class Meta:
         fields = ('name','email','password','Age','Gender','MaritalStatus','Occupation','profileID')
+
+class UserDetailSchema(marsh.Schema):
+    class Meta:
+        fields = ('name','email','password','Age','Gender','MaritalStatus','Occupation','profileID','totalRecipes','totalReviews')

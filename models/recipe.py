@@ -17,4 +17,4 @@ class RecipeSchema(marsh.Schema):
 
 class RecipeSchemaWithAvgRating(marsh.Schema):
     class Meta:
-        fields = ('Recipe_Name','Review_Count','Recipe_Photo','Author','Prepare_Time','Cook_Time','Total_Time','Ingredients','Directions','RecipeID','RatingAvg')
+        fields = ('Recipe_Name','Review_Count','Recipe_Photo','Author','Prepare_Time','Cook_Time','Total_Time','Ingredients','Directions','RecipeID','RatingAvg','AuthorName')
