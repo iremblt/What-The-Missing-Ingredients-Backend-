@@ -1,4 +1,6 @@
 # What-The-Missing-Ingredients-Backend-
+Frontend project is below: https://github.com/iremblt/what-the-missing-ingredients-frontend 
+Project details are include frontend project
 
  Create venv file 
  pip install virtualenv
